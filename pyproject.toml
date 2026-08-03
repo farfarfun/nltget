@@ -1,10 +1,16 @@
+[build-system]
+requires = [ "setuptools>=61",]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "nltget"
-version = "1.1.58"
-description = "nltget"
+version = "1.1.59"
+description = "Concurrent HTTP downloads and uploads for Python"
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = [ "funfile>=1.0.15", "nltlog>=1.0.1", "typer-slim>=0.15.2",]
+keywords = [ "download", "upload", "http", "range-requests",]
+classifiers = [ "License :: OSI Approved :: Apache Software License", "Operating System :: OS Independent", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only",]
+dependencies = [ "funfile>=1.0.15", "nltlog>=1.0.1", "requests>=2.28",]
 [[project.authors]]
 name = "牛哥"
 email = "niuliangtao@qq.com"
@@ -20,14 +26,23 @@ email = "niuliangtao@qq.com"
 [[project.maintainers]]
 name = "farfarfun"
 email = "farfarfun@qq.com"
+
+[project.license]
+file = "LICENSE"
 
 [project.scripts]
 nltget = "nltget.script:nltget"
 
 [project.urls]
-Organization = "https://github.com/farfarfun"
-Repository = "https://github.com/farfarfun/funget"
-Releases = "https://github.com/farfarfun/funget/releases"
+Homepage = "https://github.com/farfarfun/nltget"
+Repository = "https://github.com/farfarfun/nltget"
+Issues = "https://github.com/farfarfun/nltget/issues"
 
-[tool.setuptools]
-license-files = []
+[tool.ruff]
+target-version = "py38"
+
+[tool.ruff.lint]
+ignore = [ "BLE001", "FA100",]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [ "SIM117",]

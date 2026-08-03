@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 
 import requests
@@ -7,24 +6,21 @@ from nltlog import getLogger
 
 from .core import Downloader
 
-logger = getLogger("funget")
+logger = getLogger("nltget")
 
 
 class SingleDownloader(Downloader):
     """单线程下载器"""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def download(
-        self, prefix: str = "", chunk_size: int = 2048, *args, **kwargs
-    ) -> bool:
+    def download(self, prefix: str = "", chunk_size: int = 2048) -> bool:
         """执行单线程下载"""
         try:
+            if chunk_size <= 0:
+                raise ValueError("chunk_size must be positive")
             prefix = f"{prefix}--" if prefix else ""
 
             # 确保目录存在
-            os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+            os.makedirs(os.path.dirname(os.path.abspath(self.filepath)), exist_ok=True)
 
             # 检查文件是否已存在且完整
             if (
@@ -91,7 +87,7 @@ class SingleDownloader(Downloader):
             except requests.exceptions.RequestException as e:
                 logger.error(f"Network error during download: {e}")
                 return False
-            except IOError as e:
+            except OSError as e:
                 logger.error(f"File I/O error during download: {e}")
                 return False
             finally:
@@ -109,7 +105,6 @@ def download(
     overwrite: bool = False,
     prefix: str = "",
     chunk_size: int = 2048,
-    *args,
     **kwargs,
 ) -> bool:
     """单线程下载文件
@@ -124,13 +119,14 @@ def download(
     Returns:
         bool: 下载是否成功
     """
+    if chunk_size <= 0:
+        logger.error("chunk_size must be positive")
+        return False
     try:
         downloader = SingleDownloader(
-            url=url, filepath=filepath, overwrite=overwrite, *args, **kwargs
+            url=url, filepath=filepath, overwrite=overwrite, **kwargs
         )
-        return downloader.download(
-            prefix=prefix, chunk_size=chunk_size, *args, **kwargs
-        )
+        return downloader.download(prefix=prefix, chunk_size=chunk_size)
     except Exception as e:
         logger.error(f"Single-threaded download failed: {e}")
         return False
