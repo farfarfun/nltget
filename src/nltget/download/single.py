@@ -1,7 +1,7 @@
 import os
 
 import requests
-from funfile.compress.utils import file_tqdm_bar
+from nltfile import file_tqdm_bar
 from nltlog import getLogger
 
 from .core import Downloader

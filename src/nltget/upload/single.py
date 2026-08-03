@@ -3,7 +3,7 @@ import time
 from typing import Dict, Optional
 
 import requests
-from funfile.compress.utils import file_tqdm_bar
+from nltfile import file_tqdm_bar
 from nltlog import getLogger
 from requests.auth import HTTPDigestAuth
 

@@ -1,16 +1,16 @@
 [build-system]
-requires = [ "setuptools>=61",]
+requires = [ "setuptools>=83.0.0",]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "nltget"
-version = "1.1.59"
+version = "1.1.60"
 description = "Concurrent HTTP downloads and uploads for Python"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 keywords = [ "download", "upload", "http", "range-requests",]
 classifiers = [ "License :: OSI Approved :: Apache Software License", "Operating System :: OS Independent", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only",]
-dependencies = [ "funfile>=1.0.15", "nltlog>=1.0.1", "requests>=2.28",]
+dependencies = [ "nltfile>=1.0.35", "nltlog>=1.1.5", "requests>=2.34.2",]
 [[project.authors]]
 name = "牛哥"
 email = "niuliangtao@qq.com"
