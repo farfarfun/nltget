@@ -1,24 +1,23 @@
-# -*- coding: utf-8 -*-
-from funlog import getLogger
+from typing import Optional
 
-from funget.download.multi import MultiDownloader
-from funget.download.single import SingleDownloader
+from nltlog import getLogger
 
-logger = getLogger("funget")
+from .multi import MultiDownloader
+from .single import SingleDownloader
+
+logger = getLogger("nltget")
 
 
 def download(
     url: str,
     filepath: str,
-    multi: bool = None,
+    multi: Optional[bool] = None,
     overwrite: bool = False,
     prefix: str = "",
     chunk_size: int = 2048,
     worker_num: int = 5,
-    capacity: int = 100,
     block_size: int = 100,
     max_retries: int = 3,
-    *args,
     **kwargs,
 ) -> bool:
     """智能下载函数，自动选择最佳下载方式
@@ -31,7 +30,6 @@ def download(
         prefix: 进度条前缀
         chunk_size: 数据块大小(字节)，仅用于单线程下载
         worker_num: 工作线程数，仅用于多线程下载
-        capacity: 队列容量，仅用于多线程下载
         block_size: 块大小(MB)，仅用于多线程下载
         max_retries: 最大重试次数
 
@@ -39,16 +37,22 @@ def download(
         bool: 下载是否成功
     """
     try:
+        multi_downloader = None
         # 如果没有指定下载方式，自动选择
         if multi is None:
             # 创建一个临时的多线程下载器来检查是否支持范围请求
-            temp_downloader = MultiDownloader(
-                url=url, filepath=filepath, overwrite=overwrite, *args, **kwargs
+            multi_downloader = MultiDownloader(
+                url=url,
+                filepath=filepath,
+                overwrite=overwrite,
+                block_size=block_size,
+                max_retries=max_retries,
+                **kwargs,
             )
 
             # 根据文件大小和服务器支持情况自动选择
-            file_size = temp_downloader.filesize
-            supports_range = temp_downloader.check_available()
+            file_size = multi_downloader.filesize
+            supports_range = multi_downloader.supports_range
 
             # 文件大小大于10MB且支持范围请求时使用多线程
             multi = file_size > 10 * 1024 * 1024 and supports_range
@@ -59,29 +63,24 @@ def download(
             )
 
         if multi:
-            loader = MultiDownloader(
+            loader = multi_downloader or MultiDownloader(
                 url=url,
                 filepath=filepath,
                 overwrite=overwrite,
                 block_size=block_size,
-                *args,
+                max_retries=max_retries,
                 **kwargs,
             )
             return loader.download(
                 prefix=prefix,
                 worker_num=worker_num,
-                capacity=capacity,
                 max_retries=max_retries,
-                *args,
-                **kwargs,
             )
-        else:
-            loader = SingleDownloader(
-                url=url, filepath=filepath, overwrite=overwrite, *args, **kwargs
-            )
-            return loader.download(
-                prefix=prefix, chunk_size=chunk_size, *args, **kwargs
-            )
+
+        loader = SingleDownloader(
+            url=url, filepath=filepath, overwrite=overwrite, **kwargs
+        )
+        return loader.download(prefix=prefix, chunk_size=chunk_size)
 
     except Exception as e:
         logger.error(f"Download failed: {e}")

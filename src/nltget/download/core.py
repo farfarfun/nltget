@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 import os
 from typing import Any, Dict, Optional
 
 import requests
-from funlog import getLogger
+from nltlog import getLogger
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPDigestAuth
 from urllib3.util.retry import Retry
 
-logger = getLogger("funget")
+logger = getLogger("nltget")
 
 
 class Downloader:
@@ -24,8 +23,6 @@ class Downloader:
         max_retries: int = 3,
         timeout: int = 30,
         auth: Optional[HTTPDigestAuth] = None,
-        *args,
-        **kwargs,
     ):
         self.url = url
         self.auth = auth
@@ -61,7 +58,10 @@ class Downloader:
         try:
             # 首先尝试 HEAD 请求
             resp = self._session.head(
-                self.url, headers=self.headers, timeout=self.timeout
+                self.url,
+                headers=self.headers,
+                timeout=self.timeout,
+                auth=self.auth,
             )
             resp.raise_for_status()
             size = int(resp.headers.get("content-length", 0))
@@ -73,7 +73,11 @@ class Downloader:
         try:
             # 如果 HEAD 请求失败，尝试 GET 请求
             resp = self._session.get(
-                self.url, stream=True, headers=self.headers, timeout=self.timeout
+                self.url,
+                stream=True,
+                headers=self.headers,
+                timeout=self.timeout,
+                auth=self.auth,
             )
             resp.raise_for_status()
             size = int(resp.headers.get("content-length", 0))

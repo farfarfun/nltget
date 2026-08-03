@@ -1,192 +1,98 @@
+import argparse
 import os
-from typing import Optional
+from urllib.parse import urlsplit
 
-import typer
-from funlog import getLogger
+from nltlog import getLogger
 
-from funget import multi_thread_download, simple_download
-from funget.upload import single_upload
+from nltget import multi_thread_download, simple_download
+from nltget.download.multi import MultiDownloader
+from nltget.upload import single_upload
 
-logger = getLogger("funget")
-
-app = typer.Typer(help="Funget - A fast and reliable file downloader")
+logger = getLogger("nltget")
 
 
-@app.command()
-def download(
-    url: str = typer.Argument(..., help="URL to download"),
-    output: Optional[str] = typer.Option(
-        None, "-o", "--output", help="Output file path"
-    ),
-    worker: int = typer.Option(10, "-w", "--worker", help="Number of worker threads"),
-    block_size: int = typer.Option(100, "-b", "--block-size", help="Block size in MB"),
-    capacity: int = typer.Option(100, "-c", "--capacity", help="Queue capacity"),
-    max_retries: int = typer.Option(
-        3, "-r", "--max-retries", help="Maximum retry attempts"
-    ),
-    single_thread: bool = typer.Option(
-        False, "--single", help="Use single-thread download"
-    ),
-    overwrite: bool = typer.Option(
-        False, "--overwrite", help="Overwrite existing files"
-    ),
-    verbose: bool = typer.Option(
-        False, "-v", "--verbose", help="Enable verbose logging"
-    ),
-):
-    """Download a file from the given URL"""
+def _download(args) -> int:
+    output = args.output or os.path.basename(urlsplit(args.url).path) or "download"
+    download_file = simple_download if args.single else multi_thread_download
+    options = {
+        "url": args.url,
+        "filepath": output,
+        "overwrite": args.overwrite,
+        "max_retries": args.max_retries,
+    }
+    if not args.single:
+        options.update(worker_num=args.worker, block_size=args.block_size)
 
-    # 设置日志级别
-    if verbose:
-        logger.setLevel("DEBUG")
-
-    # 确定输出路径
-    if output is None:
-        filename = os.path.basename(url.split("?")[0])  # 移除查询参数
-        if not filename:
-            filename = "download"
-        output = f"./{filename}"
-
-    # 确保输出目录存在
-    output_dir = os.path.dirname(os.path.abspath(output))
-    os.makedirs(output_dir, exist_ok=True)
-
-    logger.info(f"Starting download: {url}")
-    logger.info(f"Output file: {output}")
-
-    try:
-        if single_thread:
-            logger.info("Using single-thread download")
-            success = simple_download(
-                url=url,
-                filepath=output,
-                overwrite=overwrite,
-            )
-        else:
-            logger.info(f"Using multi-thread download with {worker} workers")
-            success = multi_thread_download(
-                url=url,
-                filepath=output,
-                worker_num=worker,
-                block_size=block_size,
-                capacity=capacity,
-                overwrite=overwrite,
-                max_retries=max_retries,
-            )
-
-        if success:
-            logger.success(f"Download completed successfully: {output}")
-            typer.echo(f"✅ Download completed: {output}")
-        else:
-            logger.error("Download failed")
-            typer.echo("❌ Download failed", err=True)
-            raise typer.Exit(1)
-
-    except KeyboardInterrupt:
-        logger.warning("Download interrupted by user")
-        typer.echo("⚠️  Download interrupted", err=True)
-        raise typer.Exit(1)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        typer.echo(f"❌ Error: {e}", err=True)
-        raise typer.Exit(1)
+    if download_file(**options):
+        logger.success(f"Download completed: {output}")
+        return 0
+    logger.error("Download failed")
+    return 1
 
 
-@app.command()
-def upload(
-    file_path: str = typer.Argument(..., help="Local file path to upload"),
-    url: str = typer.Argument(..., help="Upload URL"),
-    method: str = typer.Option(
-        "PUT", "-m", "--method", help="HTTP method (PUT or POST)"
-    ),
-    chunk_size: int = typer.Option(
-        256 * 1024, "-c", "--chunk-size", help="Chunk size in bytes"
-    ),
-    max_retries: int = typer.Option(
-        3, "-r", "--max-retries", help="Maximum retry attempts"
-    ),
-    verbose: bool = typer.Option(
-        False, "-v", "--verbose", help="Enable verbose logging"
-    ),
-):
-    """Upload a file to the given URL"""
+def _upload(args) -> int:
+    if single_upload(
+        url=args.url,
+        filepath=args.file_path,
+        method=args.method,
+        chunk_size=args.chunk_size,
+        max_retries=args.max_retries,
+    ):
+        logger.success(f"Upload completed: {args.file_path}")
+        return 0
+    logger.error("Upload failed")
+    return 1
 
-    # 设置日志级别
-    if verbose:
-        logger.setLevel("DEBUG")
 
-    # 验证文件存在
-    if not os.path.exists(file_path):
-        typer.echo(f"❌ File not found: {file_path}", err=True)
-        raise typer.Exit(1)
-
-    # 获取文件信息
-    file_size = os.path.getsize(file_path)
-    filename = os.path.basename(file_path)
-
-    logger.info(f"Starting upload: {file_path} -> {url}")
-    logger.info(
-        f"File: {filename} ({file_size:,} bytes, {file_size / (1024 * 1024):.2f} MB)"
+def _info(args) -> int:
+    downloader = MultiDownloader(url=args.url, filepath="/tmp/nltget-info")
+    info = downloader.get_file_info()
+    print(f"URL: {info['url']}")
+    print(f"Filename: {info['filename']}")
+    print(f"Size: {info['filesize']:,} bytes")
+    print(
+        f"Range requests: {'supported' if downloader.supports_range else 'unsupported'}"
     )
+    return 0
 
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="nltget", description="Download and upload files"
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    download = commands.add_parser("download", help="download a file")
+    download.add_argument("url")
+    download.add_argument("-o", "--output")
+    download.add_argument("-w", "--worker", type=int, default=10)
+    download.add_argument("-b", "--block-size", type=int, default=100)
+    download.add_argument("-r", "--max-retries", type=int, default=3)
+    download.add_argument("--single", action="store_true")
+    download.add_argument("--overwrite", action="store_true")
+    download.set_defaults(handler=_download)
+
+    upload = commands.add_parser("upload", help="upload a file")
+    upload.add_argument("file_path")
+    upload.add_argument("url")
+    upload.add_argument("-m", "--method", choices=("PUT", "POST"), default="PUT")
+    upload.add_argument("-c", "--chunk-size", type=int, default=256 * 1024)
+    upload.add_argument("-r", "--max-retries", type=int, default=3)
+    upload.set_defaults(handler=_upload)
+
+    info = commands.add_parser("info", help="show remote file information")
+    info.add_argument("url")
+    info.set_defaults(handler=_info)
+    return parser
+
+
+def nltget() -> int:
+    args = _parser().parse_args()
     try:
-        success = single_upload(
-            url=url,
-            filepath=file_path,
-            method=method.upper(),
-            chunk_size=chunk_size,
-            max_retries=max_retries,
-        )
-
-        if success:
-            logger.success(f"Upload completed successfully: {filename}")
-            typer.echo(f"✅ Upload completed: {filename}")
-        else:
-            logger.error("Upload failed")
-            typer.echo("❌ Upload failed", err=True)
-            raise typer.Exit(1)
-
+        return args.handler(args)
     except KeyboardInterrupt:
-        logger.warning("Upload interrupted by user")
-        typer.echo("⚠️  Upload interrupted", err=True)
-        raise typer.Exit(1)
+        logger.warning("Interrupted")
+        return 1
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        typer.echo(f"❌ Error: {e}", err=True)
-        raise typer.Exit(1)
-
-
-@app.command()
-def info(url: str = typer.Argument(..., help="URL to get information about")):
-    """Get information about a downloadable file"""
-    try:
-        from funget.download.core import Downloader
-
-        # 创建一个临时下载器来获取文件信息
-        downloader = Downloader(url=url, filepath="/tmp/temp")
-        info = downloader.get_file_info()
-
-        typer.echo("📄 File Information:")
-        typer.echo(f"   URL: {info['url']}")
-        typer.echo(f"   Filename: {info['filename']}")
-        typer.echo(
-            f"   Size: {info['filesize']:,} bytes ({info['filesize'] / (1024 * 1024):.2f} MB)"
-        )
-
-        # 检查是否支持范围请求
-        from funget.download.multi import MultiDownloader
-
-        multi_downloader = MultiDownloader(url=url, filepath="/tmp/temp")
-        supports_range = multi_downloader.check_available()
-        typer.echo(
-            f"   Range requests: {'✅ Supported' if supports_range else '❌ Not supported'}"
-        )
-
-    except Exception as e:
-        typer.echo(f"❌ Error getting file info: {e}", err=True)
-        raise typer.Exit(1)
-
-
-def funget():
-    """Entry point for the funget command"""
-    app()
+        logger.error(f"Error: {e}")
+        return 1

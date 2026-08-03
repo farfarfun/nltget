@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 下载器模块测试
 """
@@ -6,10 +5,11 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from funget.download.core import Downloader
-from funget.download.single import SingleDownloader
-from funget.download.multi import MultiDownloader
+from unittest.mock import Mock, patch
+
+from nltget.download.core import Downloader
+from nltget.download.multi import MultiDownloader
+from nltget.download.single import SingleDownloader
 
 
 class TestDownloader(unittest.TestCase):
@@ -119,16 +119,15 @@ class TestMultiDownloader(unittest.TestCase):
         """测试多线程下载器初始化"""
         with patch.object(
             MultiDownloader, "_Downloader__get_size", return_value=104857600
-        ):
-            with patch.object(MultiDownloader, "check_available", return_value=True):
-                downloader = MultiDownloader(
-                    url=self.test_url, filepath=self.test_filepath, block_size=50
-                )
+        ), patch.object(MultiDownloader, "check_available", return_value=True):
+            downloader = MultiDownloader(
+                url=self.test_url, filepath=self.test_filepath, block_size=50
+            )
 
-                self.assertIsInstance(downloader, Downloader)
-                self.assertEqual(downloader.url, self.test_url)
-                self.assertEqual(downloader.filepath, self.test_filepath)
-                self.assertGreater(downloader.blocks_num, 1)
+            self.assertIsInstance(downloader, Downloader)
+            self.assertEqual(downloader.url, self.test_url)
+            self.assertEqual(downloader.filepath, self.test_filepath)
+            self.assertGreater(downloader.blocks_num, 1)
 
     def test_get_range_calculation(self):
         """测试范围计算"""
@@ -147,7 +146,22 @@ class TestMultiDownloader(unittest.TestCase):
                 self.assertEqual(len(ranges), 1)
                 self.assertEqual(ranges[0], (0, 999))
 
-    @patch("requests.get")
+    @patch("nltget.download.multi.file_tqdm_bar")
+    @patch("nltget.download.multi.ConcurrentFile")
+    @patch("nltget.download.work.Worker.run", return_value=True)
+    def test_download_returns_true(self, mock_run, mock_file, mock_pbar):
+        mock_file.return_value.__enter__.return_value._writen_data = []
+
+        with patch.object(
+            MultiDownloader, "_Downloader__get_size", return_value=1024
+        ), patch.object(MultiDownloader, "check_available", return_value=True):
+            downloader = MultiDownloader(url=self.test_url, filepath=self.test_filepath)
+
+        self.assertTrue(downloader.download(worker_num=2))
+        mock_run.assert_called_once()
+        mock_pbar.return_value.close.assert_called_once()
+
+    @patch("requests.Session.get")
     def test_check_available(self, mock_get):
         """测试范围请求支持检查"""
         # 模拟支持范围请求的响应
